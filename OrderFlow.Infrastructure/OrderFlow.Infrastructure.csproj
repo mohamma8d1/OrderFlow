@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Application\OrderFlow.Application.csproj" />
+    <ProjectReference Include="..\OrderFlow.Application\OrderFlow.Application.csproj" />
   </ItemGroup>
 
 </Project>

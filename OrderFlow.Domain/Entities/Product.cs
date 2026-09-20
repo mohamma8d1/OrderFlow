@@ -1,5 +1,6 @@
 ﻿using OrderFlow.Domain.Common;
 using System;
+using System.Diagnostics.Contracts;
 
 namespace OrderFlow.Domain.Entities;
 
@@ -8,6 +9,8 @@ public class Product : BaseEntity
     public Guid CategoryId { get; set; }
     public string Name { get; set; } = null!;
     public string Description { get; set; } = null!;
+    public decimal price { get; set; }
+    public int quantity { get; set; }
 
     public Category Category { get; set; } = null!;
 

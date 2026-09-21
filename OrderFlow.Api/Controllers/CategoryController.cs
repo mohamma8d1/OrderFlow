@@ -54,5 +54,39 @@ namespace OrderFlow.Api.Controllers
 
             return Ok(category);
         }
+
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult<CategoryResponse>> Update(Guid id, CreateCategoryDto dto)
+        {
+            var category = await dbContext.Categories
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (category is null)
+                return NotFound();
+
+            category.Name = dto.Name;
+            category.UpdatedAt = DateTime.UtcNow;
+
+            await dbContext.SaveChangesAsync();
+
+
+            return Ok(new CategoryResponse(category.Id, category.Name));
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<ActionResult> Delete(Guid id)
+        {
+            var category = await dbContext.Categories
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (category is null)
+                return NotFound();
+
+            dbContext.Categories.Remove(category);
+            await dbContext.SaveChangesAsync();
+
+
+            return NoContent();
+        }
     }
 }

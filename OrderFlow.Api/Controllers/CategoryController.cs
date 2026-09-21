@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.DTOs.Category;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Infrastructure.Persistence;
@@ -26,6 +27,17 @@ namespace OrderFlow.Api.Controllers
             var response = new CategoryResponse(category.Id, category.Name);
 
             return Created($"/api/Category/{category.Id}", response);
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<CategoryResponse>>> GetAll()
+        {
+            var categories = await dbContext.Categories
+                .AsNoTracking()
+                .Select(c => new CategoryResponse(c.Id, c.Name))
+                .ToListAsync();
+
+            return Ok(categories);
         }
     }
 }

@@ -39,5 +39,20 @@ namespace OrderFlow.Api.Controllers
 
             return Ok(categories);
         }
+
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<CategoryResponse>> GetById(Guid id)
+        {
+            var category = await dbContext.Categories
+                .AsNoTracking()
+                .Where(c => c.Id == id)
+                .Select(c => new CategoryResponse(c.Id, c.Name))
+                .FirstOrDefaultAsync();
+
+            if (category is null)
+                return NotFound();
+
+            return Ok(category);
+        }
     }
 }

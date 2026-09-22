@@ -1,4 +1,4 @@
-﻿using Azure;
+﻿
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,9 +15,9 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(CreateProductDto dto)
     {
-        var category = dbContext.Categories.FirstOrDefault(c => c.Id == dto.CategoryId);
+        var category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == dto.CategoryId);
         if (category == null)
-            return BadRequest("Category Not Found!!");
+            return NotFound("Category Not Found!!");
 
         var product = new Product()
         {
@@ -68,11 +68,14 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     public async Task<ActionResult<ProductResponse>> Update(Guid id , UpdateProductDto dto)
     {
 
-        var category = dbContext.Categories.FirstOrDefault(c => c.Id == dto.CategoryId);
-        if (category == null)
-            return BadRequest("Category Not Found!!");
+        var categoryExist = await dbContext.Categories.AnyAsync(c => c.Id == dto.CategoryId);
+        if (!categoryExist)
+            return BadRequest("Category Not Found!");
 
         var product = await dbContext.Products.FirstOrDefaultAsync(p => p.Id == id);
+
+        if (product is null)
+            return NotFound("Product Not Found!");
 
         product.Name = dto.Name;
         product.Description = dto.Description;
@@ -88,7 +91,7 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(response);
     }
     [HttpDelete("{id:guid}")]
-    public async Task<ActionResult<ProductResponse>> Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id)
     {
 
         var product = await dbContext.Products.FirstOrDefaultAsync(p => p.Id == id);
@@ -96,7 +99,7 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
             return NotFound();
 
         dbContext.Products.Remove(product);
-        dbContext.SaveChanges();
+        await dbContext.SaveChangesAsync();
 
         return NoContent();
     }

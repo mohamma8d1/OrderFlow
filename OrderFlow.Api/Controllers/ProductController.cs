@@ -15,6 +15,10 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(CreateProductDto dto)
     {
+        var category = dbContext.Categories.FirstOrDefault(c => c.Id == dto.CategoryId);
+        if (category == null)
+            return BadRequest("Category Not Found!!");
+
         var product = new Product()
         {
             Id = Guid.NewGuid(),
@@ -46,18 +50,54 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(products);
     }
 
-    [HttpGet("{guid:id}")]
-    public async Task<ActionResult<ProductResponse>> GetById(Guid Id)
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ProductResponse>> GetById(Guid id)
     {
 
         var product = await dbContext.Products
                                 .AsNoTracking()
-                                .Where( p => p.Id == Id)
+                                .Where( p => p.Id == id)
                                 .Select(p => new ProductResponse(p.Id, p.Name, p.Description, p.Price, p.Quantity, p.CategoryId))
                                 .FirstOrDefaultAsync();
         if (product == null)
             return NotFound();
 
         return Ok(product);
+    }
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ProductResponse>> Update(Guid id , UpdateProductDto dto)
+    {
+
+        var category = dbContext.Categories.FirstOrDefault(c => c.Id == dto.CategoryId);
+        if (category == null)
+            return BadRequest("Category Not Found!!");
+
+        var product = await dbContext.Products.FirstOrDefaultAsync(p => p.Id == id);
+
+        product.Name = dto.Name;
+        product.Description = dto.Description;
+        product.Price = dto.Price;
+        product.Quantity = dto.Quantity;
+        product.CategoryId = dto.CategoryId;
+        product.UpdatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync();
+
+
+        var response = new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.Quantity, product.CategoryId);
+        return Ok(response);
+    }
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult<ProductResponse>> Delete(Guid id)
+    {
+
+        var product = await dbContext.Products.FirstOrDefaultAsync(p => p.Id == id);
+        if (product == null)
+            return NotFound();
+
+        dbContext.Products.Remove(product);
+        dbContext.SaveChanges();
+
+        return NoContent();
     }
 }

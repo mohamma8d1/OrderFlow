@@ -31,5 +31,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasDefaultValueSql("GETUTCDATE()");
 
+        builder.Property(u => u.PasswordHash)
+            .IsRequired()
+            .HasMaxLength(500);
+
+        builder.Property(u => u.Role)
+            .IsRequired()
+            .HasMaxLength(50);
+
+
     }
 }

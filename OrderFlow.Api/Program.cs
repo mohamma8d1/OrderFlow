@@ -6,6 +6,7 @@ using Microsoft.OpenApi;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Infrastructure.Persistence;
 using System.Text;
+using OrderFlow.Infrastructure.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,6 +64,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 

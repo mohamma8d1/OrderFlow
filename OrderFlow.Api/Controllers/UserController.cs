@@ -64,6 +64,45 @@ public class UserController(ApplicationDbContext dbContext, IPasswordHasher<User
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
 
         return Ok(new { accessToken });
-    } 
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login(LoginUserDto dto)
+    {
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+
+        if (user is null)
+            return Unauthorized("Invalid email or password.");
+
+
+        var passwordVerificationResult = passwordHasher.VerifyHashedPassword(user,user.PasswordHash, dto.Password);
+
+        if(passwordVerificationResult == PasswordVerificationResult.Failed)
+            return Unauthorized("Invalid email or password.");
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var claims = new List<Claim>
+        {
+            new Claim(JwtRegisteredClaimNames.Sub , user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email)
+        };
+
+        claims.AddRange(new Claim(ClaimTypes.Role, user.Role));
+
+        var token = new JwtSecurityToken(
+            issuer: config["Jwt:Issuer"],
+            audience: config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: credentials
+            );
+
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+
+        return Ok(new { accessToken });
+
+    }
 
 }

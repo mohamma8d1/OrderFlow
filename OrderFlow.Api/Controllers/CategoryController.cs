@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.DTOs.Category;
@@ -11,6 +12,7 @@ namespace OrderFlow.Api.Controllers;
 [ApiController]
 public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
 {
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<CategoryResponse>> Create(CreateCategoryDto dto)
     {
@@ -55,6 +57,7 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(category);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<CategoryResponse>> Update(Guid id, CreateCategoryDto dto)
     {
@@ -73,6 +76,8 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(new CategoryResponse(category.Id, category.Name));
     }
 
+
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> Delete(Guid id)
     {

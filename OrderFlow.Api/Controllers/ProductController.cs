@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ namespace OrderFlow.Api.Controllers;
 [ApiController]
 public class ProductController(ApplicationDbContext dbContext) : ControllerBase
 {
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(CreateProductDto dto)
     {
@@ -64,6 +66,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
 
         return Ok(product);
     }
+
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ProductResponse>> Update(Guid id , UpdateProductDto dto)
     {
@@ -90,6 +94,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         var response = new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.Quantity, product.CategoryId);
         return Ok(response);
     }
+
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {

@@ -12,4 +12,6 @@ public class User : BaseEntity
 
     public string PasswordHash { get; set; } = null!;
     public string Role { get; set; } = "Customer";
+
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
 }

@@ -48,7 +48,7 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
                 return NotFound("product not found!");
 
             if (product.Quantity < item.Quantity)
-                return Conflict("Stock quantity less that you want");
+                return Conflict("Insufficient Stock");
 
 
             var orderItem = new OrderItem

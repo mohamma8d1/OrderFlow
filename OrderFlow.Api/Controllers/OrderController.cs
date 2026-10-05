@@ -21,6 +21,13 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
     [Authorize]
     public async Task<IActionResult> Create(CreateOrderDto dto)
     {
+        var hasDuplicatedProduct = dto.Items
+            .GroupBy(x => x.ProductId)
+            .Any(x => x.Count() > 1);
+
+        if (hasDuplicatedProduct)
+            return Conflict("duplicate item requested!");
+
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
 
         if (!Guid.TryParse(userId, out var parsedUserId))

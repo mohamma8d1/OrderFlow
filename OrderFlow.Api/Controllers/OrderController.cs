@@ -87,7 +87,15 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
             
         dbContext.Orders.Add(createOrder);
 
-        await dbContext.SaveChangesAsync();
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch(DbUpdateConcurrencyException)
+        {
+            return Conflict("Product stock was changed by another request. Please try again.");
+        }
+
 
         return Created($"/api/orders/{createOrder.Id}" ,new
         {

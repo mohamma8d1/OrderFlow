@@ -21,6 +21,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
     [Authorize]
     public async Task<IActionResult> Create(CreateOrderDto dto)
     {
+        if (dto.Items is null || dto.Items.Count == 0)
+            return BadRequest("Order must contain at least one item.");
+
         var hasDuplicatedProduct = dto.Items
             .GroupBy(x => x.ProductId)
             .Any(x => x.Count() > 1);
@@ -44,12 +47,18 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         decimal totalAmount = 0;
 
+        var productId = dto.Items.Select(x => x.ProductId).ToList();
+
+        var products  =  await dbContext.Products.Where(p => productId.Contains(p.Id)).ToListAsync();
+
+        var productsById = products.ToDictionary(p => p.Id);
+
         foreach (var item in dto.Items) {
 
             if (item.Quantity <= 0)
                 return BadRequest("Quantity must be greater than zero.");
 
-            var product = await dbContext.Products.FirstOrDefaultAsync( p => p.Id == item.ProductId);
+            var product = productsById[item.ProductId];
 
             if (product == null)
                 return NotFound("product not found!");
@@ -80,7 +89,7 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         await dbContext.SaveChangesAsync();
 
-        return Ok(new
+        return Created($"/api/orders/{createOrder.Id}" ,new
         {
             createOrder.Id,
             createOrder.TotalAmount,

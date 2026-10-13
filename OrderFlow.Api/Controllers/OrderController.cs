@@ -115,4 +115,70 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
             createOrder.Status
         });
     }
+
+
+    [HttpPost("{id:guid}/cancel")]
+    [Authorize]
+    public async Task<IActionResult> Cancel(Guid id)
+    {
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            return Unauthorized();
+
+        var order = await dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
+
+        if (order.UserId != parsedUserId)
+            return Unauthorized("this orderId is not your Order!");
+
+        if(order is null)
+            return NotFound("Order Not Found!");
+
+        if (order.Status != OrderStatus.Pending)
+            return Conflict("Order Processed and cant cancel it now!");
+
+
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var affectedRows = await dbContext.Orders
+            .Where(o => o.Id == id
+                        && o.UserId == parsedUserId
+                        && o.Status == OrderStatus.Pending)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(o => o.Status, OrderStatus.Cancelled)
+                .SetProperty(o => o.UpdatedAt, (DateTime?)DateTime.UtcNow));
+
+        if(affectedRows == 0)
+        {
+            transaction.Rollback();
+            return Conflict();
+        }
+
+        var orderItems = await dbContext.OrderItems
+            .Where(order => order.OrderId == order.Id)
+            .ToListAsync();
+
+
+        foreach(var item in orderItems)
+        {
+
+            var quantityAffectedRows = await dbContext.Products
+                .Where(p => p.Id == item.ProductId)
+                .ExecuteUpdateAsync(setter => setter
+                    .SetProperty(p => p.Quantity, p => p.Quantity + item.Quantity )
+                    .SetProperty(o => o.UpdatedAt, (DateTime?)DateTime.UtcNow));
+
+            if(quantityAffectedRows == 0)
+            {
+                transaction.Rollback();
+                return Conflict();
+            }
+
+        }
+
+
+        await transaction.CommitAsync();
+
+        return Ok("Your order cancelled sucessfuly!");
+    }
 }

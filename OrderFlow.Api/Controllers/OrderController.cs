@@ -47,25 +47,43 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         decimal totalAmount = 0;
 
-        var productId = dto.Items.Select(x => x.ProductId).ToList();
+        var productIds = dto.Items
+            .Select(x => x.ProductId).ToList();
 
-        var products  =  await dbContext.Products.Where(p => productId.Contains(p.Id)).ToListAsync();
+        var products  =  await dbContext.Products
+            .AsNoTracking()
+            .Where(p => productIds.Contains(p.Id))
+            .ToListAsync();
+
 
         var productsById = products.ToDictionary(p => p.Id);
 
-        foreach (var item in dto.Items) {
+        if (products.Count != productIds.Count)
+            return NotFound("One or more products were not found.");
 
-            if (item.Quantity <= 0)
-                return BadRequest("Quantity must be greater than zero.");
+        if (dto.Items.Any(item => item.Quantity <= 0))
+            return BadRequest("Quantity must be greater than zero.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        dbContext.Orders.Add(createOrder);
+
+        foreach (var item in dto.Items) {
 
             var product = productsById[item.ProductId];
 
-            if (product == null)
-                return NotFound("product not found!");
+            var affectedRows = await dbContext.Products
+                .Where(p  => (p.Id == item.ProductId && p.Quantity >= item.Quantity))
+                .ExecuteUpdateAsync(setters =>
+                            setters.SetProperty(
+                                p => p.Quantity,
+                                p => p.Quantity - item.Quantity));
 
-            if (product.Quantity < item.Quantity)
+            if (affectedRows == 0)
+            {
+                await transaction.RollbackAsync();
                 return Conflict("Insufficient Stock");
-
+            }
 
             var orderItem = new OrderItem
             {
@@ -75,9 +93,7 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
                 Quantity = item.Quantity,
                 UnitPrice = product.Price
             };
-       
-            product.Quantity -= item.Quantity;
-
+      
             totalAmount += product.Price * item.Quantity;
 
             dbContext.OrderItems.Add(orderItem);
@@ -85,17 +101,12 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         createOrder.TotalAmount = totalAmount;
             
-        dbContext.Orders.Add(createOrder);
 
-        try
-        {
-            await dbContext.SaveChangesAsync();
-        }
-        catch(DbUpdateConcurrencyException)
-        {
-            return Conflict("Product stock was changed by another request. Please try again.");
-        }
 
+        await dbContext.SaveChangesAsync();
+
+        await transaction.CommitAsync();
+        
 
         return Created($"/api/orders/{createOrder.Id}" ,new
         {

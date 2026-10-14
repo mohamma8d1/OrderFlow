@@ -125,10 +125,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
         if (!Guid.TryParse(userId, out var parsedUserId))
             return Unauthorized();
 
-        var order = await dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
-
-        if (order.UserId != parsedUserId)
-            return Unauthorized("this orderId is not your Order!");
+        var order = await dbContext.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == id && o.UserId == parsedUserId);
 
         if(order is null)
             return NotFound("Order Not Found!");
@@ -150,12 +149,13 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         if(affectedRows == 0)
         {
-            transaction.Rollback();
+            await transaction.RollbackAsync();
             return Conflict();
         }
 
         var orderItems = await dbContext.OrderItems
-            .Where(order => order.OrderId == order.Id)
+            .AsNoTracking()
+            .Where(order => order.OrderId == id)
             .ToListAsync();
 
 
@@ -170,7 +170,7 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
             if(quantityAffectedRows == 0)
             {
-                transaction.Rollback();
+                await transaction.RollbackAsync();
                 return Conflict();
             }
 

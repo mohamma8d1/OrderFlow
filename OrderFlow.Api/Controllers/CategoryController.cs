@@ -32,6 +32,7 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<List<CategoryResponse>>> GetAll()
     {
         var categories = await dbContext.Categories
@@ -43,6 +44,7 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize]
     public async Task<ActionResult<CategoryResponse>> GetById(Guid id)
     {
         var category = await dbContext.Categories

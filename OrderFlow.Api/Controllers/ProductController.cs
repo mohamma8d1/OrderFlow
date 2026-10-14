@@ -41,6 +41,7 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<List<ProductResponse>>> Get()
     {
 
@@ -53,6 +54,7 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize]
     public async Task<ActionResult<ProductResponse>> GetById(Guid id)
     {
 

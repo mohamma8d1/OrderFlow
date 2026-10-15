@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 
@@ -60,7 +61,30 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private string CreateToken(Guid userId)
+    [Fact]
+    public async Task Customer_CannotCreateProduct_Returns403()
+    {
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(Guid.NewGuid(), "Customer");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new
+        {
+            name = "Test Product",
+            description = "Test",
+            price = 100m,
+            quantity = 5,
+            categoryId = Guid.NewGuid()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/Product",request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private string CreateToken(Guid userId, string role = "Customer")
     {
         var config = _factory.Services.GetRequiredService<IConfiguration>();
 
@@ -72,7 +96,7 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, "test@example.com"),
-            new Claim(ClaimTypes.Role, "Customer")
+            new Claim(ClaimTypes.Role, role)
         };
 
         var token = new JwtSecurityToken(

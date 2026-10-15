@@ -1,8 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Claims;
 using System.Text;
 
 namespace OrderFlow.Api.Tests;
@@ -39,4 +44,44 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ProtectedEndpoint_ValidToken_Returns200AndUserId()
+    {
+        using var client = _factory.CreateClient();
+
+        var userId = Guid.NewGuid();
+
+        var token = CreateToken(userId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/Category");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private string CreateToken(Guid userId)
+    {
+        var config = _factory.Services.GetRequiredService<IConfiguration>();
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+
+        var credentials = new SigningCredentials(key,SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, "test@example.com"),
+            new Claim(ClaimTypes.Role, "Customer")
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: config["Jwt:Issuer"],
+            audience: config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
 }

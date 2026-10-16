@@ -18,7 +18,8 @@ public class OrderFlowApiFactory : WebApplicationFactory<Program>
             {
                 ["Jwt:Key"] = "OrderFlow-TEST-ONLY-Signing-Key-Do-Not-Use-In-Production-2026!",
                 ["Jwt:Issuer"] = "OrderFlow.Tests",
-                ["Jwt:Audience"] = "OrderFlow.Tests.Client"
+                ["Jwt:Audience"] = "OrderFlow.Tests.Client",
+                ["ConnectionStrings:DefaultConnection"] = "Data Source=MOHAMMAD-LOQ;Initial Catalog=OrderFlow_Test;Integrated Security=True;Encrypt=True;Trust Server Certificate=True;"
             };
 
             configuration.AddInMemoryCollection(testSettings);

@@ -1,0 +1,160 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using OrderFlow.Domain.Entities;
+using OrderFlow.Domain.Enums;
+using OrderFlow.Infrastructure.Persistence;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
+
+namespace OrderFlow.Api.Tests;
+
+public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
+{
+    private readonly OrderFlowApiFactory _factory;
+
+    public OrderControllerTests(OrderFlowApiFactory factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task CreateOrder_ValidRequest_CreatesOrderAndDecreasesStock()
+    {
+        await ResetDatabaseAsync();
+
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var category = new Category
+            {
+                Id = categoryId,
+                Name = "Test Category",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var product = new Product
+            {
+                Id = productId,
+                CategoryId = categoryId,
+                Name = "Test Product",
+                Description = "Product for integration test",
+                Price = 100m,
+                Quantity = 10,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var user = new User
+            {
+                Id = userId,
+                Email = "customer@example.com",
+                PhoneNumber = "+989121234567",
+                FullName = "Test Customer",
+                PasswordHash = "test-only-password-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Categories.Add(category);
+            db.Products.Add(product);
+            db.Users.Add(user);
+
+            await db.SaveChangesAsync();
+        }
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(userId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new
+        {
+            items = new[]
+            {
+                new
+                {
+                    productId,
+                    quantity = 3
+                }
+            }
+        };
+
+        var response = await client.PostAsJsonAsync("/api/Order", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var savedProduct = await verifyDb.Products
+            .AsNoTracking()
+            .SingleAsync(p => p.Id == productId);
+
+        Assert.Equal(7, savedProduct.Quantity);
+
+        var savedOrder = await verifyDb.Orders
+            .AsNoTracking()
+            .Include(o => o.Items)
+            .SingleAsync(o => o.UserId == userId);
+
+        Assert.Equal(300m, savedOrder.TotalAmount);
+        Assert.Equal(OrderStatus.Pending, savedOrder.Status);
+
+        var savedOrderItem = Assert.Single(savedOrder.Items);
+
+        Assert.Equal(productId, savedOrderItem.ProductId);
+        Assert.Equal(3, savedOrderItem.Quantity);
+        Assert.Equal(100m, savedOrderItem.UnitPrice);
+    }
+
+
+
+    private async Task ResetDatabaseAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.MigrateAsync();
+    }
+
+    private string CreateToken(Guid userId)
+    {
+        var config = _factory.Services.GetRequiredService<IConfiguration>();
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+
+        var credentials = new SigningCredentials(
+            key,
+            SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email,"customer@example.com"),
+            new Claim(ClaimTypes.Role, "Customer")
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: config["Jwt:Issuer"],
+            audience: config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}

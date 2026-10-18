@@ -119,6 +119,105 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
         Assert.Equal(100m, savedOrderItem.UnitPrice);
     }
 
+    [Fact]
+    public async Task CreateOrder_InsufficientStock_RollsBackAllChanges()
+    {
+        await ResetDatabaseAsync();
+
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var productAId = Guid.NewGuid();
+        var productBId = Guid.NewGuid();
+
+
+        using( var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var user = new User
+            {
+                Id = userId,
+                Email = "rollback-test@example.com",
+                PhoneNumber = "+989121234567",
+                FullName = "Rollback Test",
+                PasswordHash = "test-only-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var category = new Category
+            {
+                Id = categoryId,
+                Name = "Test Category",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var productA = new Product
+            {
+                Id = productAId,
+                CategoryId = categoryId,
+                Name = "Product A",
+                Description = "Enough stock",
+                Price = 100m,
+                Quantity = 10,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var productB = new Product
+            {
+                Id = productBId,
+                CategoryId = categoryId,
+                Name = "Product B",
+                Description = "Insufficient stock",
+                Price = 50m,
+                Quantity = 1,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Users.Add(user);
+            db.Categories.Add(category);
+            db.Products.AddRange(productA, productB);
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(userId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new
+        {
+            items = new[]
+            {
+                new { productId = productAId, quantity = 3 },
+                new { productId = productBId, quantity = 2 }
+            }
+        };
+
+        var response = await client.PostAsJsonAsync("api/Order", request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var savedProductA = await verifyDb.Products
+            .AsNoTracking()
+            .SingleAsync(p => p.Id == productAId);
+
+        var savedProductB = await verifyDb.Products
+            .AsNoTracking()
+            .SingleAsync(p => p.Id == productBId);
+
+        Assert.Equal(10, savedProductA.Quantity);
+        Assert.Equal(1, savedProductB.Quantity);
+
+        Assert.Equal(0, await verifyDb.Orders.CountAsync());
+        Assert.Equal(0, await verifyDb.OrderItems.CountAsync());
+    }
 
 
     private async Task ResetDatabaseAsync()

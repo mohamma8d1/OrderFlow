@@ -322,6 +322,117 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
     }
 
 
+    [Fact]
+    public async Task CancelOrder_OtherUsersOrder_Returns404AndDoesNotChangeData()
+    {
+        await ResetDatabaseAsync();
+
+        var userAId = Guid.NewGuid();
+        var userBId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var userA = new User
+            {
+                Id = userAId,
+                Email = "user-a@example.com",
+                PhoneNumber = "+989121111111",
+                FullName = "User A",
+                PasswordHash = "test-only-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var userB = new User
+            {
+                Id = userBId,
+                Email = "user-b@example.com",
+                PhoneNumber = "+989122222222",
+                FullName = "User B",
+                PasswordHash = "test-only-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var category = new Category
+            {
+                Id = categoryId,
+                Name = "Test Category",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var product = new Product
+            {
+                Id = productId,
+                CategoryId = categoryId,
+                Name = "Test Product",
+                Description = "Ownership test",
+                Price = 100m,
+                Quantity = 7,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var order = new Order
+            {
+                Id = orderId,
+                UserId = userBId,
+                TotalAmount = 300m,
+                Status = OrderStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var orderItem = new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = orderId,
+                ProductId = productId,
+                Quantity = 3,
+                UnitPrice = 100m,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Users.AddRange(userA, userB);
+            db.Categories.Add(category);
+            db.Products.Add(product);
+            db.Orders.Add(order);
+            db.OrderItems.Add(orderItem);
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(userAId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsync($"/api/Order/{orderId}/cancel", content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var savedOrder = await verifyDb.Orders
+            .AsNoTracking()
+            .SingleAsync(o => o.Id == orderId);
+
+        var savedProduct = await verifyDb.Products
+            .AsNoTracking()
+            .SingleAsync(p => p.Id == productId);
+
+        Assert.Equal(OrderStatus.Pending, savedOrder.Status);
+        Assert.Equal(7, savedProduct.Quantity);
+    }
+
+
+
 
     private async Task ResetDatabaseAsync()
     {

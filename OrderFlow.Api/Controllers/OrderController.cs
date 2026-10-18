@@ -179,6 +179,6 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         await transaction.CommitAsync();
 
-        return Ok("Your order cancelled sucessfuly!");
+        return NoContent();
     }
 }

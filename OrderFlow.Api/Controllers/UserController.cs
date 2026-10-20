@@ -33,8 +33,7 @@ public class UserController(ApplicationDbContext dbContext, IPasswordHasher<User
             Email = dto.Email,
             FullName = dto.FullName,
             PhoneNumber = dto.PhoneNumber,  
-            Role = "Customer",
-            CreatedAt = DateTime.UtcNow,
+            Role = "Customer"
         };
 
         user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);

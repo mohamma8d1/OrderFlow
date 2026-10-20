@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using OrderFlow.Domain.Common;
 using OrderFlow.Domain.Entities;
 using System;
 

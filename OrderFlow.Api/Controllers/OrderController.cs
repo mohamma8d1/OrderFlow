@@ -76,7 +76,8 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
                 .ExecuteUpdateAsync(setters =>
                             setters.SetProperty(
                                 p => p.Quantity,
-                                p => p.Quantity - item.Quantity));
+                                p => p.Quantity - item.Quantity)
+                            .SetProperty(p => p.UpdatedAt, (DateTime?)DateTime.UtcNow));
 
             if (affectedRows == 0)
             {

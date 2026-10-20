@@ -28,8 +28,7 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
             Description = dto.Description,
             Price = dto.Price,
             Quantity = dto.Quantity,
-            CategoryId = dto.CategoryId,
-            CreatedAt = DateTime.UtcNow,
+            CategoryId = dto.CategoryId
         };
 
         dbContext.Products.Add(product);
@@ -88,7 +87,6 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         product.Price = dto.Price;
         product.Quantity = dto.Quantity;
         product.CategoryId = dto.CategoryId;
-        product.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
 

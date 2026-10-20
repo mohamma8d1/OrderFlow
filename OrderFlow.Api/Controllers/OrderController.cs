@@ -41,7 +41,6 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
             Id = Guid.NewGuid(),
             UserId = parsedUserId,
             Status = OrderStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
         };
 
 

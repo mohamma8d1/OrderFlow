@@ -19,8 +19,7 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
         var category = new Category()
         {
             Id = Guid.NewGuid(),
-            Name = dto.Name,
-            CreatedAt = DateTime.UtcNow
+            Name = dto.Name
         };
 
         dbContext.Categories.Add(category);
@@ -70,7 +69,6 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
             return NotFound();
 
         category.Name = dto.Name;
-        category.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
 

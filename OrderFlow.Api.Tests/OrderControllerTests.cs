@@ -432,7 +432,103 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
     }
 
 
+    [Fact]
+    public async Task CancelOrder_TwoConcurrentRequests_RestoresStockOnlyOnce()
+    {
+        await ResetDatabaseAsync();
 
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            db.Users.Add(new User
+            {
+                Id = userId,
+                Email = "concurrent-cancel@example.com",
+                PhoneNumber = "+989121234567",
+                FullName = "Test Customer",
+                PasswordHash = "test-only-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            db.Categories.Add(new Category
+            {
+                Id = categoryId,
+                Name = "Test Category",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            db.Products.Add(new Product
+            {
+                Id = productId,
+                CategoryId = categoryId,
+                Name = "Test Product",
+                Description = "Concurrent cancellation test",
+                Price = 100m,
+                Quantity = 7,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            db.Orders.Add(new Order
+            {
+                Id = orderId,
+                UserId = userId,
+                TotalAmount = 300m,
+                Status = OrderFlow.Domain.Enums.OrderStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            db.OrderItems.Add(new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = orderId,
+                ProductId = productId,
+                Quantity = 3,
+                UnitPrice = 100m,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(userId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var firstTask = client.PostAsync($"/api/Order/{orderId}/cancel", null);
+
+        var secondTask = client.PostAsync($"/api/Order/{orderId}/cancel", null);
+
+        var responses = await Task.WhenAll(firstTask, secondTask);
+        
+        Assert.Single(responses.Where(r => r.StatusCode == HttpStatusCode.NoContent));
+
+        Assert.Single(responses.Where(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        using var verifyScope = _factory.Services.CreateScope();
+
+        var verifyDb = verifyScope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var savedProduct = await verifyDb.Products
+            .AsNoTracking()
+            .SingleAsync(p => p.Id == productId);
+
+        var savedOrder = await verifyDb.Orders
+            .AsNoTracking()
+            .SingleAsync(o => o.Id == orderId);
+
+        Assert.Equal(10, savedProduct.Quantity);
+        Assert.Equal(OrderStatus.Cancelled, savedOrder.Status);
+    }
 
     private async Task ResetDatabaseAsync()
     {

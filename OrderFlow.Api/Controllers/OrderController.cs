@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.DTOs.Order;
 using OrderFlow.Application.DTOs.OrderItem;
+using OrderFlow.Application.DTOs.Pagination;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
@@ -181,4 +182,43 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpGet("my")]
+    [Authorize]
+    public async Task<ActionResult<PagedResponse<OrderSummaryResponse>>> GetMyOrders([FromQuery] int page = 1, [FromQuery] int size = 10)
+    {
+
+        if (page < 1)
+            return BadRequest("Page must be at least 1.");
+
+        if (size < 1 || size > 50)
+            return BadRequest("Page size must be between 1 and 50.");
+
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            return Unauthorized();
+
+        var query = dbContext.Orders
+            .AsNoTracking()
+            .Where(o => o.UserId == parsedUserId);
+
+        var totalCount = await query.CountAsync();
+
+        var orders = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenByDescending(o => o.Id)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .Select(o => new OrderSummaryResponse(
+                o.Id,
+                o.CreatedAt,
+                o.TotalAmount,
+                o.Status))
+            .ToListAsync();
+
+        var response = new PagedResponse<OrderSummaryResponse>(orders, page, size, totalCount);
+
+        return Ok(response);
+    }
 }
+    

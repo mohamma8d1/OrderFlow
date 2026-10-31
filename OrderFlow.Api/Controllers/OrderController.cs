@@ -220,5 +220,38 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         return Ok(response);
     }
+
+
+    [HttpGet("{id:guid}")]
+    [Authorize]
+    public async Task<ActionResult<OrderDetailsResponse>> GetById(Guid id)
+    {
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            return Unauthorized();
+
+        var order = await dbContext.Orders
+            .AsNoTracking()
+            .Where(o => o.Id == id && o.UserId == parsedUserId)
+            .Select(o => new OrderDetailsResponse(
+                o.Id,
+                o.CreatedAt,
+                o.TotalAmount,
+                o.Status,
+                o.Items.Select(item => new OrderItemDetailsResponse(
+                        item.ProductId,
+                        item.Quantity,
+                        item.UnitPrice,
+                        item.UnitPrice * item.Quantity
+                    )).ToList()
+                )).FirstOrDefaultAsync();
+
+        if (order is null)
+            return NotFound();
+
+        return Ok(order);
+
+    }
 }
     

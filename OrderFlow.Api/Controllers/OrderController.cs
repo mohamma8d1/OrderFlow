@@ -56,11 +56,11 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
             .ToListAsync();
 
 
-        var productsById = products.ToDictionary(p => p.Id);
-
         if (products.Count != productIds.Count)
             return NotFound("One or more products were not found.");
 
+        var productsById = products.ToDictionary(p => p.Id);
+        
         if (dto.Items.Any(item => item.Quantity <= 0))
             return BadRequest("Quantity must be greater than zero.");
 

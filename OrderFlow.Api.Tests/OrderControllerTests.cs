@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using OrderFlow.Application.DTOs.Order;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
@@ -566,4 +567,143 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    [Fact]
+    public async Task GetOrderById_OwnOrder_ReturnsOrderDetails()
+    {
+        // Arrange
+        await ResetDatabaseAsync();
+
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var productAId = Guid.NewGuid();
+        var productBId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var user = new User
+            {
+                Id = userId,
+                Email = "get-order@example.com",
+                PhoneNumber = "+989121234567",
+                FullName = "Test Customer",
+                PasswordHash = "test-only-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var category = new Category
+            {
+                Id = categoryId,
+                Name = "Test Category"
+            };
+
+            var productA = new Product
+            {
+                Id = productAId,
+                CategoryId = categoryId,
+                Name = "Product A",
+                Description = "Test product A",
+                Price = 100m,
+                Quantity = 5
+            };
+
+            var productB = new Product
+            {
+                Id = productBId,
+                CategoryId = categoryId,
+                Name = "Product B",
+                Description = "Test product B",
+                Price = 50m,
+                Quantity = 10
+            };
+
+            var order = new Order
+            {
+                Id = orderId,
+                UserId = userId,
+                TotalAmount = 250m,
+                Status = OrderStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var orderItems = new[]
+            {
+            new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = orderId,
+                ProductId = productAId,
+                Quantity = 2,
+                UnitPrice = 100m
+            },
+            new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = orderId,
+                ProductId = productBId,
+                Quantity = 1,
+                UnitPrice = 50m
+            }
+        };
+
+            db.Users.Add(user);
+            db.Categories.Add(category);
+            db.Products.AddRange(productA, productB);
+            db.Orders.Add(order);
+            db.OrderItems.AddRange(orderItems);
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(userId);
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue(
+                "Bearer", token);
+
+        // Act
+        var response = await client.GetAsync(
+            $"/api/Order/{orderId}");
+
+        // Assert: HTTP response
+        Assert.Equal(
+            System.Net.HttpStatusCode.OK,
+            response.StatusCode);
+
+        var result = await response.Content
+            .ReadFromJsonAsync<OrderDetailsResponse>();
+
+        Assert.NotNull(result);
+
+        // Assert: Order details
+        Assert.Equal(orderId, result!.Id);
+        Assert.Equal(250m, result.TotalAmount);
+        Assert.Equal(OrderStatus.Pending, result.Status);
+
+        // Assert: Order items
+        Assert.Equal(2, result.Items.Count);
+
+        var firstItem = Assert.Single(
+            result.Items.Where(x => x.ProductId == productAId));
+
+        Assert.Equal(2, firstItem.Quantity);
+        Assert.Equal(100m, firstItem.UnitPrice);
+        Assert.Equal(200m, firstItem.LineToatal);
+
+        var secondItem = Assert.Single(
+            result.Items.Where(x => x.ProductId == productBId));
+
+        Assert.Equal(1, secondItem.Quantity);
+        Assert.Equal(50m, secondItem.UnitPrice);
+        Assert.Equal(50m, secondItem.LineToatal);
+    }
+
+
 }

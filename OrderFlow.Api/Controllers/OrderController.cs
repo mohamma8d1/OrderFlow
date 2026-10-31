@@ -107,14 +107,17 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
         await dbContext.SaveChangesAsync();
 
         await transaction.CommitAsync();
-        
 
-        return Created($"/api/orders/{createOrder.Id}" ,new
-        {
-            createOrder.Id,
-            createOrder.TotalAmount,
-            createOrder.Status
-        });
+
+        return CreatedAtAction(
+                nameof(GetById),
+                new { id = createOrder.Id },
+                new
+                {
+                    createOrder.Id,
+                    createOrder.TotalAmount,
+                    createOrder.Status
+                });
     }
 
 

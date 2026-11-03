@@ -28,7 +28,7 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
     {
         using var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/api/Category");
+        var response = await client.GetAsync("Category/GetAll");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -40,7 +40,7 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "Invalid-token");
 
-        var response = await client.GetAsync("/api/Category");
+        var response = await client.GetAsync("Category/GetAll");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -56,7 +56,7 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/Category");
+        var response = await client.GetAsync("Category/GetAll");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -79,7 +79,7 @@ public class AuthenticationTests : IClassFixture<OrderFlowApiFactory>
             categoryId = Guid.NewGuid()
         };
 
-        var response = await client.PostAsJsonAsync("/api/Product",request);
+        var response = await client.PostAsJsonAsync("Product/Create",request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

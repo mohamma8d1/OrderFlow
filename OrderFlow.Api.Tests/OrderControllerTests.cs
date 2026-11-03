@@ -91,7 +91,7 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
             }
         };
 
-        var response = await client.PostAsJsonAsync("/api/Order", request);
+        var response = await client.PostAsJsonAsync("Order/Create", request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
@@ -197,7 +197,7 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
             }
         };
 
-        var response = await client.PostAsJsonAsync("api/Order", request);
+        var response = await client.PostAsJsonAsync("Order/Create", request);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
 
@@ -298,11 +298,11 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var firstResponse = await client.PostAsync($"/api/Order/{orderId}/cancel", content: null);
+        var firstResponse = await client.PostAsync($"Order/Cancel/{orderId}", content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, firstResponse.StatusCode);
 
-        var secondResponse = await client.PostAsync($"/api/Order/{orderId}/cancel", content: null);
+        var secondResponse = await client.PostAsync($"Order/Cancel/{orderId}", content: null);
 
         Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
 
@@ -412,7 +412,7 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.PostAsync($"/api/Order/{orderId}/cancel", content: null);
+        var response = await client.PostAsync($"Order/Cancel/{orderId}", content: null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
@@ -504,9 +504,9 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var firstTask = client.PostAsync($"/api/Order/{orderId}/cancel", null);
+        var firstTask = client.PostAsync($"Order/Cancel/{orderId}", null);
 
-        var secondTask = client.PostAsync($"/api/Order/{orderId}/cancel", null);
+        var secondTask = client.PostAsync($"Order/Cancel/{orderId}", null);
 
         var responses = await Task.WhenAll(firstTask, secondTask);
         
@@ -544,6 +544,89 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
         await db.Products.ExecuteDeleteAsync();
         await db.Categories.ExecuteDeleteAsync();
         await db.Users.ExecuteDeleteAsync();
+    }
+
+
+    [Fact]
+    public async Task GetOrderById_OtherUsersOrder_Returns404()
+    {
+        // Arrange
+        await ResetDatabaseAsync();
+
+        var userAId = Guid.NewGuid();
+        var userBId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var userA = new User
+            {
+                Id = userAId,
+                Email = "user-a@example.com",
+                PhoneNumber = "+989121111111",
+                FullName = "User A",
+                PasswordHash = "test-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var userB = new User
+            {
+                Id = userBId,
+                Email = "user-b@example.com",
+                PhoneNumber = "+989122222222",
+                FullName = "User B",
+                PasswordHash = "test-hash",
+                Role = "Customer",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var order = new Order
+            {
+                Id = orderId,
+                UserId = userBId,
+                TotalAmount = 500m,
+                Status = OrderStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Users.AddRange(userA, userB);
+            db.Orders.Add(order);
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+
+        // Authenticate as User A
+        var token = CreateToken(userAId);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Act
+        var response = await client.GetAsync($"Order/GetById/{orderId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetOrderById_NonExistingOrder_Returns404()
+    {
+        await ResetDatabaseAsync();
+
+        using var client = _factory.CreateClient();
+
+        var token = CreateToken(Guid.NewGuid());
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"Order/GetById/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private string CreateToken(Guid userId)
@@ -675,7 +758,7 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         // Act
         var response = await client.GetAsync(
-            $"/api/Order/{orderId}");
+            $"Order/GetById/{orderId}");
 
         // Assert: HTTP response
         Assert.Equal(
@@ -709,6 +792,8 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
         Assert.Equal(50m, secondItem.UnitPrice);
         Assert.Equal(50m, secondItem.LineToatal);
     }
+
+
 
 
 }

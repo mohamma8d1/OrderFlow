@@ -8,12 +8,13 @@ using OrderFlow.Infrastructure.Persistence;
 
 namespace OrderFlow.Api.Controllers;
 
-[Route("api/[controller]")]
 [ApiController]
+[Route("[controller]")]
 public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
 {
     [Authorize(Roles = "Admin")]
     [HttpPost]
+    [Route("[action]")]
     public async Task<ActionResult<CategoryResponse>> Create(CreateCategoryDto dto)
     {
         var category = new Category()
@@ -30,8 +31,9 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
         return Created($"/api/Category/{category.Id}", response);
     }
 
-    [HttpGet]
     [Authorize]
+    [HttpGet]
+    [Route("[action]")]
     public async Task<ActionResult<List<CategoryResponse>>> GetAll()
     {
         var categories = await dbContext.Categories
@@ -42,8 +44,9 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(categories);
     }
 
-    [HttpGet("{id:guid}")]
     [Authorize]
+    [HttpGet]
+    [Route("[action]/{id:guid}")]
     public async Task<ActionResult<CategoryResponse>> GetById(Guid id)
     {
         var category = await dbContext.Categories
@@ -59,7 +62,9 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
-    [HttpPut("{id:guid}")]
+    [HttpPut]
+    [Route("[action]/{id:guid}")]
+
     public async Task<ActionResult<CategoryResponse>> Update(Guid id, CreateCategoryDto dto)
     {
         var category = await dbContext.Categories
@@ -78,7 +83,8 @@ public class CategoryController(ApplicationDbContext dbContext) : ControllerBase
 
 
     [Authorize(Roles = "Admin")]
-    [HttpDelete("{id:guid}")]
+    [HttpDelete]
+    [Route("[action]/{id:guid}")]
     public async Task<ActionResult> Delete(Guid id)
     {
         var category = await dbContext.Categories

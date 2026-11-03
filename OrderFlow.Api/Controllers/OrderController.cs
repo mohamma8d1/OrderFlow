@@ -14,12 +14,13 @@ using System.Security.Claims;
 
 namespace OrderFlow.Api.Controllers;
 
-[Route("api/[controller]")]
+[Route("[controller]")]
 [ApiController]
 public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 {
-    [HttpPost]
     [Authorize]
+    [HttpPost]
+    [Route("[action]")]
     public async Task<IActionResult> Create(CreateOrderDto dto)
     {
         if (dto.Items is null || dto.Items.Count == 0)
@@ -121,8 +122,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
     }
 
 
-    [HttpPost("{id:guid}/cancel")]
     [Authorize]
+    [HttpPost]
+    [Route("[action]/{id:guid}")]
     public async Task<IActionResult> Cancel(Guid id)
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
@@ -186,8 +188,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("my")]
     [Authorize]
+    [HttpGet]
+    [Route("[action]")]
     public async Task<ActionResult<PagedResponse<OrderSummaryResponse>>> GetMyOrders([FromQuery] int page = 1, [FromQuery] int size = 10)
     {
 
@@ -225,8 +228,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
     }
 
 
-    [HttpGet("{id:guid}")]
     [Authorize]
+    [HttpGet]
+    [Route("[action]/{id:guid}")]
     public async Task<ActionResult<OrderDetailsResponse>> GetById(Guid id)
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);

@@ -9,12 +9,13 @@ using OrderFlow.Infrastructure.Persistence;
 
 namespace OrderFlow.Api.Controllers;
 
-[Route("api/[controller]")]
+[Route("[controller]")]
 [ApiController]
 public class ProductController(ApplicationDbContext dbContext) : ControllerBase
 {
     [Authorize(Roles = "Admin")]
     [HttpPost]
+    [Route("[action]")]
     public async Task<ActionResult<ProductResponse>> Create(CreateProductDto dto)
     {
         var category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == dto.CategoryId);
@@ -39,8 +40,9 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         return Created($"/api/Product/{product.Id}", response);
     }
 
-    [HttpGet]
     [Authorize]
+    [HttpGet]
+    [Route("[action]")]
     public async Task<ActionResult<List<ProductResponse>>> Get()
     {
 
@@ -52,8 +54,9 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
         return Ok(products);
     }
 
-    [HttpGet("{id:guid}")]
     [Authorize]
+    [HttpGet]
+    [Route("[action]/{id:guid}")]
     public async Task<ActionResult<ProductResponse>> GetById(Guid id)
     {
 
@@ -69,7 +72,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
-    [HttpPut("{id:guid}")]
+    [HttpPut]
+    [Route("[action]/{id:guid}")]
     public async Task<ActionResult<ProductResponse>> Update(Guid id , UpdateProductDto dto)
     {
 
@@ -96,7 +100,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
-    [HttpDelete("{id:guid}")]
+    [HttpDelete]
+    [Route("[action]/{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
 

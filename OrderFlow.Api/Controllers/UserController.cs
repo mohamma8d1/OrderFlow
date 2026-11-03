@@ -13,12 +13,13 @@ using System.Text;
 
 namespace OrderFlow.Api.Controllers;
 
-[Route("api/[controller]")]
+[Route("[controller]")]
 [ApiController]
 public class UserController(ApplicationDbContext dbContext, IPasswordHasher<User> passwordHasher, IJwtService jwtService) : ControllerBase
 {
 
-    [HttpPost("register")]
+    [HttpPost]
+    [Route("[action]")]
     public async Task<ActionResult> Register(RegisterUserDto dto)
     {
         var existEmail = await dbContext.Users.AnyAsync(u => u.Email == dto.Email);
@@ -47,7 +48,8 @@ public class UserController(ApplicationDbContext dbContext, IPasswordHasher<User
         return Ok(new { accessToken });
     }
 
-    [HttpPost("login")]
+    [HttpPost]
+    [Route("[action]")]
     public async Task<IActionResult> Login(LoginUserDto dto)
     {
         var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);

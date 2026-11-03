@@ -537,8 +537,13 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
+        // EnsureDeleted is a no-op against a shared in-memory SQLite database,
+        // so clear rows explicitly (children first to respect foreign keys).
+        await db.OrderItems.ExecuteDeleteAsync();
+        await db.Orders.ExecuteDeleteAsync();
+        await db.Products.ExecuteDeleteAsync();
+        await db.Categories.ExecuteDeleteAsync();
+        await db.Users.ExecuteDeleteAsync();
     }
 
     private string CreateToken(Guid userId)

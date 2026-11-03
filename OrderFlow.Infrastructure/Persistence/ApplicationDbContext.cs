@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using OrderFlow.Domain.Common;
 using OrderFlow.Domain.Entities;
 using System;
@@ -17,6 +18,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        if (!Database.IsSqlServer())
+        {
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                var createdAt = entityType.FindProperty(nameof(BaseEntity.CreatedAt));
+                if (createdAt is not null)
+                {
+                    createdAt.SetDefaultValueSql(null);
+                    createdAt.ValueGenerated = ValueGenerated.Never;
+                }
+            }
+
+            var product = modelBuilder.Model.FindEntityType(typeof(Product));
+            var rowVersion = product?.FindProperty(nameof(Product.RowVresion));
+            if (rowVersion is not null)
+            {
+                rowVersion.IsConcurrencyToken = false;
+                rowVersion.ValueGenerated = ValueGenerated.Never;
+                rowVersion.IsNullable = true;
+                rowVersion.RemoveAnnotation("Relational:IsRowVersion");
+                rowVersion.RemoveAnnotation("SqlServer:IsRowVersion");
+            }
+        }
     }
 
     public override int SaveChanges()

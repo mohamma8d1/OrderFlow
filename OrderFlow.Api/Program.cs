@@ -5,8 +5,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using OrderFlow.Api.BackgroundServices;
 using OrderFlow.Domain.Entities;
+using OrderFlow.Infrastructure.BackgroundServices;
 using OrderFlow.Infrastructure.DependencyInjection;
 using OrderFlow.Infrastructure.Persistence;
+using OrderFlow.Infrastructure.BackgroundServices;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,9 +71,16 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<OutboxPublisherBackgroundService>();
+
+    builder.Services.AddHostedService<OrderStreamConsumerBackgroundService>();
+}
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline. 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

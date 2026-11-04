@@ -231,4 +231,53 @@ public class RedisLearningController(IConnectionMultiplexer redis) : ControllerB
             Acknowledged = true
         });
     }
+    [HttpPost]
+    [Route("[action]")]
+    public async Task<IActionResult> ClaimPendingMessages([FromQuery] string consumerName = "worker-2", [FromQuery] long minIdleMilliseconds = 5000, [FromQuery] int count = 10)
+    {
+        if (string.IsNullOrWhiteSpace(consumerName))
+            return BadRequest("Consumer name is required.");
+
+        if (minIdleMilliseconds < 1000 ||
+            minIdleMilliseconds > 3600000)
+            return BadRequest("Invalid idle time.");
+
+        if (count < 1 || count > 100)
+            return BadRequest("Invalid count.");
+
+        var database = redis.GetDatabase();
+
+        var result = await database.StreamAutoClaimAsync(
+            StreamKey,
+            GroupName,
+            consumerName,
+            minIdleMilliseconds,
+            "0-0",
+            count);
+
+        var claimedMessages = result.ClaimedEntries.Select(entry =>
+        {
+            var fields = entry.Values.ToDictionary(
+                field => field.Name.ToString(),
+                field => field.Value.ToString());
+
+            return new
+            {
+                Id = entry.Id.ToString(),
+                EventType = fields["eventType"],
+                Message = fields["message"],
+                Consumer = consumerName
+            };
+        });
+
+        return Ok(new
+        {
+            Consumer = consumerName,
+            NextStartId = result.NextStartId.ToString(),
+            ClaimedCount = result.ClaimedEntries.Length,
+            ClaimedMessages = claimedMessages,
+            DeletedIds = result.DeletedIds
+                .Select(id => id.ToString())
+        });
+    }
 }

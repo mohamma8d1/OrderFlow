@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Metadata;
 using OrderFlow.Domain.Common;
 using OrderFlow.Domain.Entities;
+using OrderFlow.Infrastructure.Persistence.Outbox;
 using System;
 
 namespace OrderFlow.Infrastructure.Persistence;
@@ -13,6 +14,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<User> Users => Set<User>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

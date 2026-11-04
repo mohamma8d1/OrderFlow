@@ -20,7 +20,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
             var options = ConfigurationOptions.Parse(redisConnectionString);
+
             options.ClientName = "OrderFlow";
+            options.AbortOnConnectFail = false;
 
             return ConnectionMultiplexer.Connect(options);
         });

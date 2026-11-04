@@ -6,11 +6,15 @@ using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.DTOs.Order;
 using OrderFlow.Application.DTOs.OrderItem;
 using OrderFlow.Application.DTOs.Pagination;
+using OrderFlow.Application.Events;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
+using OrderFlow.Infrastructure.Persistence.Outbox;
+using StackExchange.Redis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace OrderFlow.Api.Controllers;
 
@@ -38,7 +42,7 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
         if (!Guid.TryParse(userId, out var parsedUserId))
             return Unauthorized();
 
-        var createOrder = new Order
+        var createOrder = new Domain.Entities.Order
         {
             Id = Guid.NewGuid(),
             UserId = parsedUserId,
@@ -102,8 +106,27 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
         }
 
         createOrder.TotalAmount = totalAmount;
-            
 
+        var eventId = Guid.NewGuid();
+        var occurredAtUtc = DateTime.UtcNow;
+
+        var orderCreatedEvent = new OrderCreatedEvent(
+            EventId: eventId,
+            OrderId: createOrder.Id,
+            UserId: parsedUserId,
+            TotalAmount: createOrder.TotalAmount,
+            OccurredAtUtc: occurredAtUtc
+        );
+
+        var outboxMessage = new OutboxMessage
+        {
+            Id = eventId,
+            EventType = "OrderCreated",
+            Payload = JsonSerializer.Serialize(orderCreatedEvent),
+            OccurredAtUtc = occurredAtUtc
+        };
+
+        dbContext.OutboxMessages.Add(outboxMessage);
 
         await dbContext.SaveChangesAsync();
 

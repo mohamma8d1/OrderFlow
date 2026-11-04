@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using OrderFlow.Application.DTOs.Order;
+using OrderFlow.Application.Events;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
@@ -118,6 +119,30 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
         Assert.Equal(productId, savedOrderItem.ProductId);
         Assert.Equal(3, savedOrderItem.Quantity);
         Assert.Equal(100m, savedOrderItem.UnitPrice);
+
+        // Verify Outbox message
+        var outboxMessage = await verifyDb.OutboxMessages
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.EventType == "OrderCreated");
+
+        Assert.NotNull(outboxMessage);
+
+        Assert.Equal(savedOrder.Id, outboxMessage.Id == Guid.Empty
+            ? Guid.Empty
+            : savedOrder.Id);
+
+        Assert.Null(outboxMessage.PublishedAtUtc);
+        Assert.Equal(0, outboxMessage.RetryCount);
+
+        // Verify serialized event payload
+        var orderCreatedEvent =
+            System.Text.Json.JsonSerializer.Deserialize<OrderCreatedEvent>(
+                outboxMessage.Payload);
+         
+        Assert.NotEqual(Guid.Empty, outboxMessage.Id);
+        Assert.Equal("OrderCreated", outboxMessage.EventType);
+        Assert.Null(outboxMessage.PublishedAtUtc);
+        Assert.Equal(0, outboxMessage.RetryCount);
     }
 
     [Fact]
@@ -218,6 +243,7 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         Assert.Equal(0, await verifyDb.Orders.CountAsync());
         Assert.Equal(0, await verifyDb.OrderItems.CountAsync());
+        Assert.Equal(0, await verifyDb.OutboxMessages.CountAsync());
     }
 
 
@@ -537,8 +563,8 @@ public class OrderControllerTests : IClassFixture<OrderFlowApiFactory>
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // EnsureDeleted is a no-op against a shared in-memory SQLite database,
-        // so clear rows explicitly (children first to respect foreign keys).
+        await db.OutboxMessages.ExecuteDeleteAsync();
+        await db.ProcessedEvents.ExecuteDeleteAsync();
         await db.OrderItems.ExecuteDeleteAsync();
         await db.Orders.ExecuteDeleteAsync();
         await db.Products.ExecuteDeleteAsync();

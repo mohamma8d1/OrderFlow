@@ -1,12 +1,8 @@
+using OrderFlow.Common.Enums;
+
 namespace OrderFlow.Business.Exceptions;
 
-public enum BusinessErrorType
-{
-    BadRequest,
-    Unauthorized,
-    NotFound,
-    Conflict
-}
+
 
 /// <summary>
 /// A business rule failed. The Api layer's BusinessExceptionFilter turns it into the matching

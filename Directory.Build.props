@@ -1,0 +1,29 @@
+<Project>
+
+  <!-- Package versions live here (same style as SamanSalamat.Statistics.Rest). -->
+  <PropertyGroup Label="PackageVersions">
+    <AspNetCoreVersion>10.0.13</AspNetCoreVersion>
+    <EntityFrameworkCoreVersion>10.0.14</EntityFrameworkCoreVersion>
+    <MicrosoftExtensionsIdentityVersion>10.0.14</MicrosoftExtensionsIdentityVersion>
+    <IdentityModelVersion>8.19.2</IdentityModelVersion>
+    <StackExchangeRedisVersion>3.4.31</StackExchangeRedisVersion>
+    <SwashbuckleVersion>10.3.0</SwashbuckleVersion>
+    <SystemSecurityCryptographyPkcsVersion>10.0.14</SystemSecurityCryptographyPkcsVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="TestPackageVersions">
+    <CoverletCollectorVersion>6.0.4</CoverletCollectorVersion>
+    <MicrosoftAspNetCoreMvcTestingVersion>10.0.13</MicrosoftAspNetCoreMvcTestingVersion>
+    <MicrosoftNETTestSdkVersion>17.14.1</MicrosoftNETTestSdkVersion>
+    <TestcontainersVersion>4.16.0</TestcontainersVersion>
+    <XunitVersion>2.9.3</XunitVersion>
+    <XunitRunnerVisualStudioVersion>3.1.4</XunitRunnerVisualStudioVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

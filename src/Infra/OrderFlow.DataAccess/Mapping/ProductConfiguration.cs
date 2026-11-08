@@ -1,0 +1,44 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using OrderFlow.Common.Entities;
+using System;
+
+namespace OrderFlow.DataAccess.Mapping;
+
+public class ProductConfiguration : IEntityTypeConfiguration<Product>
+{
+    public void Configure(EntityTypeBuilder<Product> builder)
+    {
+        builder.ToTable("Products");
+
+        builder.HasKey(p => p.Id);
+
+        builder.Property(p => p.Name)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.Property(p => p.Description)
+            .HasMaxLength(250);
+
+        builder.Property(p => p.Price)
+            .IsRequired()
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(p => p.Quantity)
+            .IsRequired();
+
+        builder.Property(p => p.RowVresion)
+            .IsRowVersion();
+
+        builder.HasOne(p => p.Category)
+            .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(c => c.CreatedAt)
+            .IsRequired()
+            .HasDefaultValueSql("GETUTCDATE()");
+
+
+    }
+}

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Entities, enums, DTOs and events. No dependencies on the other layers. -->
+
+</Project>

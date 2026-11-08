@@ -20,9 +20,6 @@ using System.Text;
 
 namespace OrderFlow.Web;
 
-/// <summary>
-/// Everything the host registers, one Inject* method per concern (same style as SamanSalamat.Statistics.Rest).
-/// </summary>
 internal static class DependencyInjectionExtension
 {
     internal static IServiceCollection InjectControllersAndApi(this IServiceCollection services) =>
@@ -98,6 +95,7 @@ internal static class DependencyInjectionExtension
 
         services.TryAddSingleton<IProductCache, NullProductCache>();
         services.TryAddSingleton<IRateLimiter, NullRateLimiter>();
+        services.TryAddSingleton<IProductChangePublisher, NullProductChangePublisher>();
 
         return services;
     }
@@ -119,14 +117,11 @@ internal static class DependencyInjectionExtension
 
         services.Replace(ServiceDescriptor.Singleton<IProductCache, RedisProductCache>());
         services.Replace(ServiceDescriptor.Singleton<IRateLimiter, RedisRateLimiter>());
+        services.Replace(ServiceDescriptor.Singleton<IProductChangePublisher, RedisProductChangePublisher>());
 
         return services;
     }
 
-    /// <summary>
-    /// Every class in OrderFlow.Business.Businesses, as itself and as each interface it implements
-    /// (so adding a new XxxBusiness needs no change here).
-    /// </summary>
     internal static IServiceCollection InjectBusinesses(this IServiceCollection services) =>
         services
             .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
@@ -144,7 +139,7 @@ internal static class DependencyInjectionExtension
                 sp.GetRequiredService<IServiceScopeFactory>(),
                 sp.GetRequiredService<IConnectionMultiplexer>(),
                 sp.GetRequiredService<ILogger<OrderStreamConsumer>>()))
-            .AddHostedService<RedisMessageSubscriber>()
+            .AddHostedService<ProductChangeSubscriber>()
             .AddHostedService<OutboxPublisherBackgroundService>()
             .AddHostedService<OrderStreamConsumerBackgroundService>();
 

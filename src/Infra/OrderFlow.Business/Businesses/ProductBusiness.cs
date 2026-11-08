@@ -3,12 +3,17 @@ using OrderFlow.Business.Contracts;
 using OrderFlow.Business.Exceptions;
 using OrderFlow.Common.DTOs.Product;
 using OrderFlow.Common.Entities;
+using OrderFlow.Common.Events;
 using OrderFlow.DataAccess.Caching;
 using OrderFlow.DataAccess.Core;
+using OrderFlow.DataAccess.Messaging;
 
 namespace OrderFlow.Business.Businesses;
 
-public class ProductBusiness(ApplicationDbContext dbContext, IProductCache productCache) : IProductBusiness
+public class ProductBusiness(
+    ApplicationDbContext dbContext,
+    IProductCache productCache,
+    IProductChangePublisher productChanges) : IProductBusiness
 {
     public async Task<ProductResponse> CreateAsync(CreateProductDto dto, CancellationToken cancellationToken = default)
     {
@@ -31,6 +36,7 @@ public class ProductBusiness(ApplicationDbContext dbContext, IProductCache produ
 
         // In case someone asked for this id before it existed and a "not found" is cached.
         await productCache.RemoveAsync([product.Id], cancellationToken);
+        await productChanges.PublishAsync(product.Id, ProductChangeKinds.Created, cancellationToken);
 
         return ToResponse(product);
     }
@@ -85,6 +91,7 @@ public class ProductBusiness(ApplicationDbContext dbContext, IProductCache produ
 
         // The product changed, so the cached copy is now wrong: delete it.
         await productCache.RemoveAsync([id], cancellationToken);
+        await productChanges.PublishAsync(id, ProductChangeKinds.Updated, cancellationToken);
 
         return ToResponse(product);
     }
@@ -98,6 +105,7 @@ public class ProductBusiness(ApplicationDbContext dbContext, IProductCache produ
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await productCache.RemoveAsync([id], cancellationToken);
+        await productChanges.PublishAsync(id, ProductChangeKinds.Deleted, cancellationToken);
     }
 
     private static ProductResponse ToResponse(Product p) =>

@@ -9,11 +9,15 @@ using OrderFlow.Common.Enums;
 using OrderFlow.Common.Events;
 using OrderFlow.DataAccess.Caching;
 using OrderFlow.DataAccess.Core;
+using OrderFlow.DataAccess.Messaging;
 using System.Text.Json;
 
 namespace OrderFlow.Business.Businesses;
 
-public class OrderBusiness(ApplicationDbContext dbContext, IProductCache productCache) : IOrderBusiness
+public class OrderBusiness(
+    ApplicationDbContext dbContext,
+    IProductCache productCache,
+    IProductChangePublisher productChanges) : IOrderBusiness
 {
     public async Task<OrderCreatedResponse> CreateAsync(Guid userId, CreateOrderDto dto, CancellationToken cancellationToken = default)
     {
@@ -114,6 +118,9 @@ public class OrderBusiness(ApplicationDbContext dbContext, IProductCache product
         // commit, otherwise another request could re-cache the old value in between.
         await productCache.RemoveAsync(productIds, cancellationToken);
 
+        foreach (var productId in productIds)
+            await productChanges.PublishAsync(productId, ProductChangeKinds.StockDecreased, cancellationToken);
+
         return new OrderCreatedResponse(order.Id, order.TotalAmount, order.Status);
     }
 
@@ -167,6 +174,9 @@ public class OrderBusiness(ApplicationDbContext dbContext, IProductCache product
 
         // Stock was returned to these products, so their cached copies are stale.
         await productCache.RemoveAsync(orderItems.Select(item => item.ProductId), cancellationToken);
+
+        foreach (var item in orderItems)
+            await productChanges.PublishAsync(item.ProductId, ProductChangeKinds.StockRestored, cancellationToken);
     }
 
     public async Task<PagedResponse<OrderSummaryResponse>> GetMyOrdersAsync(Guid userId, int page, int size, CancellationToken cancellationToken = default)

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderFlow.Business.Caching;
 using OrderFlow.Business.Contracts;
 using OrderFlow.Business.Exceptions;
 using OrderFlow.Common.DTOs.Product;
@@ -13,7 +14,9 @@ namespace OrderFlow.Business.Businesses;
 public class ProductBusiness(
     ApplicationDbContext dbContext,
     IProductCache productCache,
-    IProductChangePublisher productChanges) : IProductBusiness
+    IProductChangePublisher productChanges,
+    IReadCache readCache,
+    CacheOutcome cacheOutcome) : IProductBusiness
 {
     public async Task<ProductResponse> CreateAsync(CreateProductDto dto, CancellationToken cancellationToken = default)
     {
@@ -36,21 +39,33 @@ public class ProductBusiness(
 
         // In case someone asked for this id before it existed and a "not found" is cached.
         await productCache.RemoveAsync([product.Id], cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.ProductList, cancellationToken);
         await productChanges.PublishAsync(product.Id, ProductChangeKinds.Created, cancellationToken);
 
         return ToResponse(product);
     }
 
+    /// <summary>
+    /// Cached with a version key and a short TTL. Every product change and every order (stock) bumps the version,
+    /// so on a busy shop this list is rebuilt often; that is the price of showing quantity in a list.
+    /// </summary>
     public Task<List<ProductResponse>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        dbContext.Products
-            .AsNoTracking()
-            .Select(p => new ProductResponse(p.Id, p.Name, p.Description, p.Price, p.Quantity, p.CategoryId))
-            .ToListAsync(cancellationToken);
+        readCache.GetOrLoadAsync(
+            cacheOutcome,
+            CacheScopes.ProductList,
+            "all",
+            CacheScopes.ProductListTtl,
+            () => dbContext.Products
+                .AsNoTracking()
+                .Select(p => new ProductResponse(p.Id, p.Name, p.Description, p.Price, p.Quantity, p.CategoryId))
+                .ToListAsync(cancellationToken),
+            cancellationToken);
 
     public async Task<ProductLookupResult> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         // Cache-aside step 1: ask Redis. A hit can be a product OR a cached "not found".
         var cached = await productCache.GetAsync(id, cancellationToken);
+        cacheOutcome.Record(cached.IsHit);
 
         if (cached.IsHit)
             return new ProductLookupResult(cached.Product, FromCache: true);
@@ -91,6 +106,7 @@ public class ProductBusiness(
 
         // The product changed, so the cached copy is now wrong: delete it.
         await productCache.RemoveAsync([id], cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.ProductList, cancellationToken);
         await productChanges.PublishAsync(id, ProductChangeKinds.Updated, cancellationToken);
 
         return ToResponse(product);
@@ -105,6 +121,7 @@ public class ProductBusiness(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await productCache.RemoveAsync([id], cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.ProductList, cancellationToken);
         await productChanges.PublishAsync(id, ProductChangeKinds.Deleted, cancellationToken);
     }
 

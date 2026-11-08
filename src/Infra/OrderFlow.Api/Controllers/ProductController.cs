@@ -24,10 +24,8 @@ public class ProductController(IProductBusiness productBusiness) : OrderFlowCont
     [HttpGet("[action]/{id:guid}")]
     public async Task<ActionResult<ProductResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
+        // X-Cache (HIT/MISS) is added by CacheStatusHeaderFilter, like on every other GET.
         var result = await productBusiness.GetByIdAsync(id, cancellationToken);
-
-        // HIT = answered by Redis (a product, or a cached "not found"); MISS = read from SQL Server.
-        Response.Headers["X-Cache"] = result.FromCache ? "HIT" : "MISS";
 
         return result.Product is null ? NotFound() : Ok(result.Product);
     }

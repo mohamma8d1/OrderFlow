@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderFlow.Business.Caching;
 using OrderFlow.Business.Contracts;
 using OrderFlow.Business.Exceptions;
 using OrderFlow.Common.DTOs.Order;
@@ -17,7 +18,9 @@ namespace OrderFlow.Business.Businesses;
 public class OrderBusiness(
     ApplicationDbContext dbContext,
     IProductCache productCache,
-    IProductChangePublisher productChanges) : IOrderBusiness
+    IProductChangePublisher productChanges,
+    IReadCache readCache,
+    CacheOutcome cacheOutcome) : IOrderBusiness
 {
     public async Task<OrderCreatedResponse> CreateAsync(Guid userId, CreateOrderDto dto, CancellationToken cancellationToken = default)
     {
@@ -117,6 +120,8 @@ public class OrderBusiness(
         // Stock (Quantity) of these products just went down. Invalidate AFTER the
         // commit, otherwise another request could re-cache the old value in between.
         await productCache.RemoveAsync(productIds, cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.ProductList, cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.UserOrders(userId), cancellationToken);
 
         foreach (var productId in productIds)
             await productChanges.PublishAsync(productId, ProductChangeKinds.StockDecreased, cancellationToken);
@@ -174,6 +179,8 @@ public class OrderBusiness(
 
         // Stock was returned to these products, so their cached copies are stale.
         await productCache.RemoveAsync(orderItems.Select(item => item.ProductId), cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.ProductList, cancellationToken);
+        await readCache.BumpVersionAsync(CacheScopes.UserOrders(userId), cancellationToken);
 
         foreach (var item in orderItems)
             await productChanges.PublishAsync(item.ProductId, ProductChangeKinds.StockRestored, cancellationToken);
@@ -187,39 +194,56 @@ public class OrderBusiness(
         if (size < 1 || size > 50)
             throw BusinessException.BadRequest("Page size must be between 1 and 50.");
 
-        var query = dbContext.Orders
-            .AsNoTracking()
-            .Where(o => o.UserId == userId);
+        // One cache entry per page and page size, inside this user's scope.
+        return await readCache.GetOrLoadAsync(
+            cacheOutcome,
+            CacheScopes.UserOrders(userId),
+            $"page:{page}:size:{size}",
+            CacheScopes.UserOrdersTtl,
+            async () =>
+            {
+                var query = dbContext.Orders
+                    .AsNoTracking()
+                    .Where(o => o.UserId == userId);
 
-        var totalCount = await query.CountAsync(cancellationToken);
+                var totalCount = await query.CountAsync(cancellationToken);
 
-        var orders = await query
-            .OrderByDescending(o => o.CreatedAt)
-            .ThenByDescending(o => o.Id)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .Select(o => new OrderSummaryResponse(o.Id, o.CreatedAt, o.TotalAmount, o.Status))
-            .ToListAsync(cancellationToken);
+                var orders = await query
+                    .OrderByDescending(o => o.CreatedAt)
+                    .ThenByDescending(o => o.Id)
+                    .Skip((page - 1) * size)
+                    .Take(size)
+                    .Select(o => new OrderSummaryResponse(o.Id, o.CreatedAt, o.TotalAmount, o.Status))
+                    .ToListAsync(cancellationToken);
 
-        return new PagedResponse<OrderSummaryResponse>(orders, page, size, totalCount);
+                return new PagedResponse<OrderSummaryResponse>(orders, page, size, totalCount);
+            },
+            cancellationToken);
     }
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid userId, Guid orderId, CancellationToken cancellationToken = default)
     {
-        var order = await dbContext.Orders
-            .AsNoTracking()
-            .Where(o => o.Id == orderId && o.UserId == userId)
-            .Select(o => new OrderDetailsResponse(
-                o.Id,
-                o.CreatedAt,
-                o.TotalAmount,
-                o.Status,
-                o.Items.Select(item => new OrderItemDetailsResponse(
-                    item.ProductId,
-                    item.Quantity,
-                    item.UnitPrice,
-                    item.UnitPrice * item.Quantity)).ToList()))
-            .FirstOrDefaultAsync(cancellationToken);
+        // The scope contains the user id, so one user can never be served another user's cached order.
+        var order = await readCache.GetOrLoadItemAsync(
+            cacheOutcome,
+            CacheScopes.UserOrders(userId),
+            $"order:{orderId:D}",
+            CacheScopes.UserOrdersTtl,
+            () => dbContext.Orders
+                .AsNoTracking()
+                .Where(o => o.Id == orderId && o.UserId == userId)
+                .Select(o => new OrderDetailsResponse(
+                    o.Id,
+                    o.CreatedAt,
+                    o.TotalAmount,
+                    o.Status,
+                    o.Items.Select(item => new OrderItemDetailsResponse(
+                        item.ProductId,
+                        item.Quantity,
+                        item.UnitPrice,
+                        item.UnitPrice * item.Quantity)).ToList()))
+                .FirstOrDefaultAsync(cancellationToken),
+            cancellationToken);
 
         return order ?? throw BusinessException.NotFound();
     }

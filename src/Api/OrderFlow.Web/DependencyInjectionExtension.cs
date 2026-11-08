@@ -28,6 +28,8 @@ internal static class DependencyInjectionExtension
             {
                 // BusinessException -> 400/401/404/409
                 options.Filters.Add<BusinessExceptionFilter>();
+                // X-Cache: HIT/MISS on every response that used a cache
+                options.Filters.Add<CacheStatusHeaderFilter>();
             })
             // Controllers live in OrderFlow.Api, not in this project
             .AddApplicationPart(typeof(ProductController).Assembly)
@@ -96,6 +98,8 @@ internal static class DependencyInjectionExtension
         services.TryAddSingleton<IProductCache, NullProductCache>();
         services.TryAddSingleton<IRateLimiter, NullRateLimiter>();
         services.TryAddSingleton<IProductChangePublisher, NullProductChangePublisher>();
+        services.TryAddSingleton<IReadCache, NullReadCache>();
+        services.AddScoped<CacheOutcome>();
 
         return services;
     }
@@ -118,6 +122,7 @@ internal static class DependencyInjectionExtension
         services.Replace(ServiceDescriptor.Singleton<IProductCache, RedisProductCache>());
         services.Replace(ServiceDescriptor.Singleton<IRateLimiter, RedisRateLimiter>());
         services.Replace(ServiceDescriptor.Singleton<IProductChangePublisher, RedisProductChangePublisher>());
+        services.Replace(ServiceDescriptor.Singleton<IReadCache, RedisReadCache>());
 
         return services;
     }

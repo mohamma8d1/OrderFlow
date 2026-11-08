@@ -8,7 +8,6 @@ using OrderFlow.Domain.Entities;
 using OrderFlow.Infrastructure.BackgroundServices;
 using OrderFlow.Infrastructure.DependencyInjection;
 using OrderFlow.Infrastructure.Persistence;
-using OrderFlow.Infrastructure.BackgroundServices;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,7 +43,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
-builder.Services.AddHostedService<RedisMessageSubscriber>();
+
 
 builder.Services.AddAuthentication(options =>
 {
@@ -69,12 +68,15 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure();
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
+    builder.Services.AddRedisConnection(builder.Configuration);
+    builder.Services.AddRedisCaching();
+    builder.Services.AddOutboxMessaging();
+    builder.Services.AddHostedService<RedisMessageSubscriber>();
     builder.Services.AddHostedService<OutboxPublisherBackgroundService>();
-
     builder.Services.AddHostedService<OrderStreamConsumerBackgroundService>();
 }
 

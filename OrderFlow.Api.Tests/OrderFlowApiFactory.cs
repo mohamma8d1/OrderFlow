@@ -31,6 +31,7 @@ public class OrderFlowApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((context, configuration) =>
         {
             var testSettings = new Dictionary<string, string?>

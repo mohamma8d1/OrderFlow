@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.DTOs.Product;
+using OrderFlow.Application.Interfaces;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Infrastructure.Persistence;
 
@@ -11,7 +12,7 @@ namespace OrderFlow.Api.Controllers;
 
 [Route("[controller]")]
 [ApiController]
-public class ProductController(ApplicationDbContext dbContext) : ControllerBase
+public class ProductController(ApplicationDbContext dbContext, IProductCache productCache) : ControllerBase
 {
     [Authorize(Roles = "Admin")]
     [HttpPost]
@@ -59,7 +60,18 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
     [Route("[action]/{id:guid}")]
     public async Task<ActionResult<ProductResponse>> GetById(Guid id)
     {
+        // Cache-aside step 1: try Redis first.
+        var cached = await productCache.GetAsync(id);
 
+        if (cached is not null)
+        {
+            Response.Headers["X-Cache"] = "HIT";
+            return Ok(cached);
+        }
+
+        Response.Headers["X-Cache"] = "MISS";
+
+        // Step 2: on a miss, read from the database...
         var product = await dbContext.Products
                                 .AsNoTracking()
                                 .Where( p => p.Id == id)
@@ -67,6 +79,9 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
                                 .FirstOrDefaultAsync();
         if (product == null)
             return NotFound();
+
+        // Step 3: ...and store the result so the next request is a HIT.
+        await productCache.SetAsync(product);
 
         return Ok(product);
     }
@@ -94,6 +109,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
 
         await dbContext.SaveChangesAsync();
 
+        // The product changed, so the cached copy is now wrong: delete it.
+        await productCache.RemoveAsync([id]);
 
         var response = new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.Quantity, product.CategoryId);
         return Ok(response);
@@ -111,6 +128,8 @@ public class ProductController(ApplicationDbContext dbContext) : ControllerBase
 
         dbContext.Products.Remove(product);
         await dbContext.SaveChangesAsync();
+
+        await productCache.RemoveAsync([id]);
 
         return NoContent();
     }

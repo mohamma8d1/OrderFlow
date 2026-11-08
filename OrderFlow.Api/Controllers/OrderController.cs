@@ -7,11 +7,11 @@ using OrderFlow.Application.DTOs.Order;
 using OrderFlow.Application.DTOs.OrderItem;
 using OrderFlow.Application.DTOs.Pagination;
 using OrderFlow.Application.Events;
+using OrderFlow.Application.Interfaces;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
 using OrderFlow.Infrastructure.Persistence.Outbox;
-using StackExchange.Redis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
@@ -20,7 +20,7 @@ namespace OrderFlow.Api.Controllers;
 
 [Route("[controller]")]
 [ApiController]
-public class OrderController(ApplicationDbContext dbContext) : ControllerBase
+public class OrderController(ApplicationDbContext dbContext, IProductCache productCache) : ControllerBase
 {
     [Authorize]
     [HttpPost]
@@ -132,6 +132,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
         await transaction.CommitAsync();
 
+        // Stock (Quantity) of these products just went down. Invalidate AFTER the
+        // commit, otherwise another request could re-cache the old value in between.
+        await productCache.RemoveAsync(productIds);
 
         return CreatedAtAction(
                 nameof(GetById),
@@ -207,6 +210,9 @@ public class OrderController(ApplicationDbContext dbContext) : ControllerBase
 
 
         await transaction.CommitAsync();
+
+        // Stock was returned to these products, so their cached copies are stale.
+        await productCache.RemoveAsync(orderItems.Select(item => item.ProductId));
 
         return NoContent();
     }
